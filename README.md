@@ -1,69 +1,39 @@
-## Foundry
+# 💠 DeFi Stablecoin Protocol
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+A decentralized, crypto-collateralized **stablecoin** system designed to maintain a soft peg to **$1.00** through algorithmic balancing and on-chain data from **Chainlink oracles**.  
+Built entirely with **Solidity** and tested using **Foundry**.
 
-Foundry consists of:
+---
 
-- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
-- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
-- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
-- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+## ⚙️ Overview
 
-## Documentation
+The **DeFi Stablecoin Protocol** aims to provide a **trust-minimized**, **decentralized**, and **collateral-backed** stablecoin architecture.  
+Unlike fiat-backed or custodial stablecoins, this system leverages **exogenous collateral (ETH, BTC)** and an **on-chain minting mechanism** to maintain stability.
 
-https://book.getfoundry.sh/
+---
 
-## Usage
+## 🧩 Core Mechanisms
 
-### Build
+### 1. 🪙 Relative Stability — *Anchored to $1.00*
+- The system maintains a soft peg to USD.  
+- Uses **Chainlink Price Feeds** for real-time ETH/USD and BTC/USD data.  
+- Includes an internal balancing function that adjusts collateral ratios and exchange logic to keep assets near the $1.00 equivalent.
 
-```shell
-$ forge build
-```
+### 2. ⚖️ Stability Mechanism — *Algorithmic Minting*
+- Users can **mint new stablecoins** by locking sufficient collateral.  
+- Minting logic enforces **over-collateralization** (e.g., 150%) to ensure solvency.  
+- Built with a focus on **decentralization**, avoiding any centralized mint or redemption authority.
 
-### Test
+### 3. 🔐 Collateral — *Exogenous (Crypto-based)*
+- Supported assets:  
+  - **wETH** (Wrapped Ether)  
+  - **wBTC** (Wrapped Bitcoin)  
+- Future versions may integrate additional ERC-20 collateral types.
 
-```shell
-$ forge test
-```
+---
 
-### Format
+## 🧠 Architecture
+- **Solidity Smart Contracts** — core protocol logic.  
+- **Foundry** — development, testing, and deployment framework.  
+- **Chainlink Oracles** — secure, tamper-proof data feeds for real-time asset pricing.
 
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
-```
-
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
-# Defi-StableCoin
-# Defi-StableCoin
-# Defi-StableCoin
