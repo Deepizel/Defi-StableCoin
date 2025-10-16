@@ -9,18 +9,24 @@ import {HelperConfig} from "./HelperConfig.s.sol";
 contract DeployDsc is Script {
     address[] public tokenAddresses;
     address[] public priceFeedAddresses;
-    function run() external returns (DecentralizedStableCoin, DSCEngine) {
+
+    function run() external returns (DecentralizedStableCoin, DSCEngine, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         // pick config basedon chain id from helper config
-        (address wethUsdPriceFeed, address wbtcUsdPriceFeed, address weth, address wbtc, uint256 deployerKey) = helperConfig.activeNetworkConfig();
+        (address wethUsdPriceFeed, address wbtcUsdPriceFeed, address weth, address wbtc, uint256 deployerKey) =
+            helperConfig.activeNetworkConfig();
         tokenAddresses = [weth, wbtc];
         priceFeedAddresses = [wethUsdPriceFeed, wbtcUsdPriceFeed];
         vm.startBroadcast(deployerKey);
-        DecentralizedStableCoin dsc = new DecentralizedStableCoin();
+        // we need to do this line to make the script know it should derive the address from the deployerKey
+        address deployer = vm.addr(deployerKey);
+
+        DecentralizedStableCoin dsc = new DecentralizedStableCoin(deployer);
         DSCEngine engine = new DSCEngine(tokenAddresses, priceFeedAddresses, address(dsc));
-        vm.stopBroadcast();
         // transfer ownership of DSC to engine
         dsc.transferOwnership(address(engine));
-        return (dsc, engine);
+        vm.stopBroadcast();
+
+        return (dsc, engine, helperConfig);
     }
 }
