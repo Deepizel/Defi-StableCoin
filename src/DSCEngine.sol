@@ -31,6 +31,7 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__MintFailed();
     error DSCEngine__HealthFactorIsBroken();
     error DSCEngine__TransferFailed();
+    error DSCEngine__BurnFailed();
     // State varibles
 
     uint256 private constant ADDITIONAL_FEED_PRECISION = 1e10;
@@ -49,6 +50,8 @@ contract DSCEngine is ReentrancyGuard {
     // EVENTS
 
     event CollateralDeposited(address indexed user, address indexed token, uint256 indexed amount);
+    event CollateralRedeemed(address indexed user, address indexed token, uint256 indexed amount);
+    event DscBurned(address indexed user, uint256 indexed tokenCollateralAddress, uint256 indexed amount);
     // MODIFIERS
 
     modifier moreThanZero(uint256 amount) {
@@ -91,8 +94,29 @@ contract DSCEngine is ReentrancyGuard {
             collateralTokens.push(tokenAddresses[i]);
         }
     }
+    /**
+     * @notice Deposit collateral and mint DSC tokens.
+     * @param tokenCollateralAddress The address of the collateral token.
+     * @param amountCollateral The amount of collateral to deposit.
+     * @param amountDscToMint The amount of DSC to mint.
+     * follows CEI pattern (Checks, Effects, Interactions) to enforce best practices against reentrancy attacks
+     * this mints DSC tokens and deposits collateral in one transaction
+     */
 
-    function depositCollateralAndMintDsc() external {}
+    function depositCollateralAndMintDsc(
+        address tokenCollateralAddress,
+        uint256 amountCollateral,
+        uint256 amountDscToMint
+    )
+        public
+        moreThanZero(amountCollateral)
+        moreThanZero(amountDscToMint)
+        isAllowedToken(tokenCollateralAddress)
+        nonReentrant
+    {
+        depositCollateral(tokenCollateralAddress, amountCollateral);
+        mintDsc(amountDscToMint);
+    }
 
     /**
      * @notice Deposit collateral and mint DSC tokens.
@@ -102,7 +126,7 @@ contract DSCEngine is ReentrancyGuard {
      *
      */
     function depositCollateral(address tokenCollateralAddress, uint256 amountCollateral)
-        external
+        public
         moreThanZero(amountCollateral)
         isAllowedToken(tokenCollateralAddress)
         nonReentrant
@@ -114,12 +138,57 @@ contract DSCEngine is ReentrancyGuard {
             revert DSCEngine__TransferFailed();
         }
     }
+    /**
+     * @notice Redeem collateral and burn DSC tokens.
+     * @param tokenCollateralAddress The address of the collateral token.
+     * @param amountCollateral The amount of collateral to redeem.
+     * @param amountDscToBurn The amount of DSC to burn.
+     * follows CEI pattern (Checks, Effects, Interactions) to enforce best practices against reentrancy attacks
+     *
+     */
 
-    // function redeemCollateralForDsc() external {}
+    function redeemCollateralForDsc(address tokenCollateralAddress, uint256 amountCollateral, uint256 amountDscToBurn)
+        public
+    {
+        burnDsc(amountDscToBurn);
+        redeemCollateral(tokenCollateralAddress, amountCollateral);
+    }
+    /**
+     * @notice Redeem collateral and burn DSC tokens.
+     * @param tokenCollateralAddress The address of the collateral token.
+     * @param amountCollateral The amount of collateral to redeem.
+     * @param amountDscToBurn The amount of DSC to burn.
+     * follows CEI pattern (Checks, Effects, Interactions) to enforce best practices against reentrancy attacks
+     *
+     */
 
-    // function burnDsc() external {}
+    function redeemCollateral(address tokenCollateralAddress, uint256 amountCollateral)
+        public
+        moreThanZero(amountCollateral)
+        isAllowedToken(tokenCollateralAddress)
+        nonReentrant
+    {
+        collateralDeposited[msg.sender][tokenCollateralAddress] -= amountCollateral;
+        emit CollateralRedeemed(msg.sender, tokenCollateralAddress, amountCollateral);
+        bool success = IERC20(tokenCollateralAddress).transfer(msg.sender, amountCollateral);
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+        // check the health factor after the collateral is redeemed
+        _revertIfHealthFactorIsBroken(msg.sender);
+    }
+    // do we need to check health factor here?
 
-    // function redeemCollateral() external {}
+    function burnDsc(uint256 amountDscToBurn) public moreThanZero(amountDscToBurn) nonReentrant {
+        amountOfDscMinted[msg.sender] -= amountDscToBurn;
+        bool success = I_DSC.transferFrom(msg.sender, address(this), amountDscToBurn);
+        if (!success) {
+            revert DSCEngine__TransferFailed();
+        }
+
+        I_DSC.burn(amountDscToBurn);
+        _revertIfHealthFactorIsBroken(msg.sender); //dont think this will hit so subject to audit
+    }
     // check if the collateral value > DSC amount, run all checks
 
     /**
@@ -129,7 +198,7 @@ contract DSCEngine is ReentrancyGuard {
      * follows CEI pattern (Checks, Effects, Interactions) to enforce best practices against reentrancy attacks
      *
      */
-    function mintDsc(uint256 amountDsc) external moreThanZero(amountDsc) nonReentrant {
+    function mintDsc(uint256 amountDsc) public moreThanZero(amountDsc) nonReentrant {
         // I_DSC.mint(msg.sender, amountDsc);
         amountOfDscMinted[msg.sender] += amountDsc;
 
@@ -144,7 +213,7 @@ contract DSCEngine is ReentrancyGuard {
     // function liquidate() external {}
 
     function healthFactor(address user) external view returns (uint256) {
-        (uint256 totalDscMinted, uint256 totalCollateralValueInUsd) = _getAccountInformation(user);
+        (uint256 totalDscMinted,) = _getAccountInformation(user);
         return _healthFactor(user);
     }
 
