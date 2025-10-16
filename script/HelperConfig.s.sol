@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.18;
+pragma solidity ^0.8.19;
 
-import {Script} from "forge-std/Script.sol";
 import {MockV3Aggregator} from "../test/Mocks/MockV3AggregatorInterface.sol";
-import {ERC20Mock} from "../test/mocks/ERC20Mock.sol";
+import {Script} from "forge-std/Script.sol";
+import {ERC20Mock} from "../test/Mocks/ERC20Mock.sol";
+import {console} from "forge-std/console.sol";
 
 contract HelperConfig is Script {
-
     struct NetworkConfig {
         address wethUsdPriceFeed;
         address wbtcUsdPriceFeed;
@@ -15,50 +15,62 @@ contract HelperConfig is Script {
         uint256 deployerKey;
     }
 
+    NetworkConfig public activeNetworkConfig;
+
     uint8 public constant DECIMALS = 8;
     int256 public constant ETH_USD_PRICE = 2000e8;
     int256 public constant BTC_USD_PRICE = 1000e8;
-    // set default anvil key
-    int256 public constant DEFAULT_ANVIL_KEY = 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80;
-    NetworkConfig public activeNetworkConfig;
+
+    // this private key is the default anvil one
+    uint256 public constant DEFAULT_ANVIL_PRIVATE_KEY =
+        uint256(0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80);
 
     constructor() {
         if (block.chainid == 11155111) {
-            activeNetworkConfig = getSepoliaNetworkConfig();
-        } else if (block.chainid == 1337) {
-            activeNetworkConfig = getAnvilNetworkConfig();
+            activeNetworkConfig = getSepoliaEthConfig();
+        } else {
+            activeNetworkConfig = getOrCreateAnvilEthConfig();
         }
-    }           
+    }
 
-    function getSepoliaNetworkConfig() public view returns (NetworkConfig memory) {
-        return NetworkConfig({
-            wethUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
-            wbtcUsdPriceFeed: 0x1b44D59000000000000000000000000000000000,
-            weth: 0x4200000000000000000000000000000000000006,
-            wbtc: 0x2F6F07CDcf3588944Bf4C42aC74ff24bf56e7590,
+    function getSepoliaEthConfig() public view returns (NetworkConfig memory sepoliaNetworkConfig) {
+        sepoliaNetworkConfig = NetworkConfig({
+            wethUsdPriceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306, // ETH / USD
+            wbtcUsdPriceFeed: 0x1b44F3514812d835EB1BDB0acB33d3fA3351Ee43, // BTC / USD
+            weth: 0xdd13E55209Fd76AfE204dBda4007C227904f0a81, // mock weth
+            wbtc: 0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063, // mock wbtc
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
     }
 
-    function getAnvilNetworkConfig() public pure returns (NetworkConfig memory) {
-        if(activeNetworkConfig.wethUsdPriceFeed != address(0)) {
-            return activeNetworkConfig;
-        }
+    function getOrCreateAnvilEthConfig() public returns (NetworkConfig memory anvilNetworkConfig) {
         vm.startBroadcast();
-        // build mocks for weth
+
         MockV3Aggregator ethUsdPriceFeed = new MockV3Aggregator(DECIMALS, ETH_USD_PRICE);
-        ERC20Mock wethMock = new ERC20Mock("WETH", "WETH", 18, vm.envUint("PRIVATE_KEY"));
-        // build mocks for wbtc
         MockV3Aggregator btcUsdPriceFeed = new MockV3Aggregator(DECIMALS, BTC_USD_PRICE);
-        ERC20Mock wbtcMock = new ERC20Mock("WBTC", "WBTC", 18, vm.envUint("PRIVATE_KEY"));
+
+        ERC20Mock wethMock = new ERC20Mock("Wrapped Ether", "WETH", msg.sender, 1000e18);
+        ERC20Mock wbtcMock = new ERC20Mock("Wrapped BTC", "WBTC", msg.sender, 1000e18);
 
         vm.stopBroadcast();
-        return NetworkConfig({
+
+        anvilNetworkConfig = NetworkConfig({
             wethUsdPriceFeed: address(ethUsdPriceFeed),
             wbtcUsdPriceFeed: address(btcUsdPriceFeed),
             weth: address(wethMock),
             wbtc: address(wbtcMock),
-            deployerKey: DEFAULT_ANVIL_KEY
+            deployerKey: DEFAULT_ANVIL_PRIVATE_KEY
         });
+
+        // Set it as the active config so other contracts see it
+        activeNetworkConfig = anvilNetworkConfig;
+
+        console.log("Anvil mocks deployed:");
+        console.log("WETH:", address(wethMock));
+        console.log("WETH/USD feed:", address(ethUsdPriceFeed));
+        console.log("WBTC:", address(wbtcMock));
+        console.log("WBTC/USD feed:", address(btcUsdPriceFeed));
+
+        return anvilNetworkConfig;
     }
 }
